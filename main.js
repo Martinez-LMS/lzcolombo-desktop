@@ -1,6 +1,7 @@
-const { app, BrowserWindow, session, desktopCapturer, screen, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, session, desktopCapturer, screen, shell, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
+const { autoUpdater } = require('electron-updater');
 
 // Troque aqui se um dia mudar de domínio/hospedagem.
 const SITE_URL = 'https://lzcolombo.onrender.com';
@@ -177,11 +178,33 @@ function setupRemoteControl() {
   ipcMain.on('vleon:remote-input', (e, { ev, bounds } = {}) => { if (trusted(e)) applyRemoteInput(ev, bounds); });
 }
 
+// ---------- atualização automática (GitHub Releases) ----------
+// Só faz sentido no app instalado (empacotado); rodando "npm start" direto da pasta não tem o que atualizar.
+function setupAutoUpdate() {
+  if (!app.isPackaged) return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.on('error', (err) => console.error('[atualização]', err));
+  autoUpdater.on('update-downloaded', async (info) => {
+    const { response } = await dialog.showMessageBox({
+      type: 'info',
+      title: 'Atualização do VLeon',
+      message: `Uma nova versão (${info.version}) foi baixada.`,
+      detail: 'Reinicie o app pra instalar agora, ou deixe pra próxima vez que abrir.',
+      buttons: ['Reiniciar agora', 'Depois'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response === 0) autoUpdater.quitAndInstall();
+  });
+  autoUpdater.checkForUpdates().catch((err) => console.error('[atualização] falha ao checar:', err));
+}
+
 app.whenReady().then(() => {
   const mainWin = createWindow();
   setupScreenShare(mainWin);
   setupPermissions();
   setupRemoteControl();
+  setupAutoUpdate();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

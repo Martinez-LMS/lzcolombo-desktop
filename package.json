@@ -7,7 +7,8 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win",
+    "release": "electron-builder --win --publish always"
   },
   "build": {
     "appId": "com.vleon.desktop",
@@ -15,6 +16,11 @@
     "icon": "build/icon.ico",
     "directories": {
       "output": "dist"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Martinez-LMS",
+      "repo": "lzcolombo-desktop"
     },
     "win": {
       "target": "nsis",
@@ -32,5 +38,8 @@
     "electron": "^33.0.0",
     "electron-builder": "^25.1.8",
     "png-to-ico": "^2.1.8"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }
