@@ -17,6 +17,11 @@ function createWindow() {
     icon: path.join(__dirname, 'build', 'icon.png'),
     autoHideMenuBar: true, // sem barra de menu (File/Edit/...) pra parecer um app de verdade
     backgroundColor: '#0a0d14',
+    // some com a barra de título nativa (ícone + "VLeon - Compartilhe sua tela" + botões), que
+    // destoa do visual do site; fica só os botões de minimizar/maximizar/fechar, flutuando sobre
+    // a nossa própria barra de cima (que vira "arrastável" via CSS, veja .is-desktop-app no site)
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#0a0d14', symbolColor: '#e9edf6', height: 44 },
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
