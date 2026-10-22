@@ -20,7 +20,8 @@
     "publish": {
       "provider": "github",
       "owner": "Martinez-LMS",
-      "repo": "lzcolombo-desktop"
+      "repo": "lzcolombo-desktop",
+      "releaseType": "release"
     },
     "win": {
       "target": "nsis",
