@@ -7,6 +7,10 @@ const { autoUpdater } = require('electron-updater');
 const SITE_URL = 'https://lzcolombo.onrender.com';
 const SITE_ORIGIN = new URL(SITE_URL).origin;
 
+// sem isso, as notificações do Windows (ex.: aviso de atualização) aparecem como vindas de
+// "Electron" com um ícone genérico, em vez de "VLeon" com o nosso ícone
+app.setAppUserModelId('com.vleon.desktop');
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
