@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, desktopCapturer, screen, shell, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, session, desktopCapturer, screen, shell, ipcMain, dialog, Notification } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
@@ -189,6 +189,15 @@ function setupAutoUpdate() {
   if (!app.isPackaged) return;
   autoUpdater.autoDownload = true;
   autoUpdater.on('error', (err) => console.error('[atualização]', err));
+  autoUpdater.on('update-available', (info) => {
+    if (!Notification.isSupported()) return;
+    new Notification({
+      title: 'Atualização disponível',
+      body: `A versão ${info.version} do VLeon tá disponível e já está sendo baixada…`,
+      icon: path.join(__dirname, 'build', 'icon.png'),
+      silent: true,
+    }).show();
+  });
   autoUpdater.on('update-downloaded', async (info) => {
     const { response } = await dialog.showMessageBox({
       type: 'info',
