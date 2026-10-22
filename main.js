@@ -181,6 +181,20 @@ function applyRemoteInput(ev, bounds) {
   }
 }
 
+// cores iguais às do site (--bg/--text de cada tema), pra barra de título nativa acompanhar
+// quando a pessoa troca entre claro e escuro lá dentro do app
+const TITLEBAR_COLORS = {
+  dark: { color: '#0a0d14', symbolColor: '#e9edf6' },
+  light: { color: '#f2f4fa', symbolColor: '#131a2b' },
+};
+function setupThemeSync(mainWin) {
+  const trusted = (e) => { try { return new URL(e.senderFrame.url).origin === SITE_ORIGIN; } catch { return false; } };
+  ipcMain.on('vleon:set-titlebar-theme', (e, { light } = {}) => {
+    if (!trusted(e) || mainWin.isDestroyed() || !mainWin.setTitleBarOverlay) return;
+    mainWin.setTitleBarOverlay({ ...(light ? TITLEBAR_COLORS.light : TITLEBAR_COLORS.dark), height: 44 });
+  });
+}
+
 function setupRemoteControl() {
   const trusted = (e) => { try { return new URL(e.senderFrame.url).origin === SITE_ORIGIN; } catch { return false; } };
   ipcMain.handle('vleon:get-screen-bounds', (e) => (trusted(e) ? lastScreenBounds : null));
@@ -222,6 +236,7 @@ app.whenReady().then(() => {
   setupScreenShare(mainWin);
   setupPermissions();
   setupRemoteControl();
+  setupThemeSync(mainWin);
   setupAutoUpdate();
 
   app.on('activate', () => {

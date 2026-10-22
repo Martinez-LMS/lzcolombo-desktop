@@ -7,4 +7,5 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   isElectron: true,
   getScreenBounds: () => ipcRenderer.invoke('vleon:get-screen-bounds'),
   applyRemoteInput: (ev, bounds) => ipcRenderer.send('vleon:remote-input', { ev, bounds }),
+  setTitleBarTheme: (light) => ipcRenderer.send('vleon:set-titlebar-theme', { light: !!light }),
 });
