@@ -50,12 +50,13 @@ function askUserToPickSource(sources, parent) {
   return new Promise((resolve) => {
     const picker = new BrowserWindow({
       width: 640,
-      height: 560,
+      height: 480,
       parent,
       modal: true,
       resizable: false,
       minimizable: false,
       maximizable: false,
+      frame: false, // a barra nativa vinha branca, destoando do resto do app — usa uma própria, escura, no picker.html
       title: 'Escolha o que compartilhar',
       backgroundColor: '#10151f',
       autoHideMenuBar: true,

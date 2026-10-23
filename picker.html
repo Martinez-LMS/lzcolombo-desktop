@@ -6,28 +6,39 @@
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
   body {
-    margin: 0; padding: 18px; background: #10151f; color: #e9edf6;
-    font: 14px/1.4 -apple-system, "Segoe UI", sans-serif; user-select: none;
+    display: flex; flex-direction: column; background: #10151f; color: #e9edf6;
+    font: 14px/1.4 -apple-system, "Segoe UI", sans-serif; user-select: none; overflow: hidden;
   }
-  h1 { font-size: 15px; margin: 0 0 14px; font-weight: 700; }
-  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .head {
+    display: flex; align-items: center; gap: 8px; flex: none; padding: 10px 10px 10px 16px;
+    background: #0a0d14; border-bottom: 1px solid rgba(255,255,255,.08); -webkit-app-region: drag;
+  }
+  .head b { font-size: 13px; font-weight: 700; flex: 1; }
+  .head button {
+    -webkit-app-region: no-drag; width: 30px; height: 30px; border-radius: 7px; border: 0;
+    background: transparent; color: #8892a7; cursor: pointer; font-size: 16px; line-height: 1;
+  }
+  .head button:hover { background: rgba(255,255,255,.08); color: #e9edf6; }
+  .body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 16px; gap: 14px; }
+  .tabs { display: flex; gap: 8px; flex: none; }
   .tab {
     background: transparent; border: 1px solid rgba(255,255,255,.14); color: #8892a7; border-radius: 999px;
     padding: 7px 16px; font: inherit; font-weight: 600; cursor: pointer;
   }
   .tab:hover { color: #e9edf6; }
   .tab.on { background: #6f5bff; border-color: #6f5bff; color: #fff; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; max-height: 390px; overflow-y: auto; }
+  .grid { flex: 1; min-height: 0; display: grid; align-content: start; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; overflow-y: auto; }
   .empty { color: #8892a7; padding: 30px 0; text-align: center; grid-column: 1 / -1; }
   .src {
     border: 2px solid rgba(255,255,255,.08); border-radius: 10px; padding: 8px; cursor: pointer; background: #161c29;
-    display: flex; flex-direction: column; gap: 6px; text-align: left;
+    display: flex; flex-direction: column; gap: 6px; text-align: left; align-self: start;
   }
   .src:hover, .src:focus { border-color: #6f5bff; outline: none; }
   .src img { width: 100%; height: 84px; object-fit: contain; background: #000; border-radius: 6px; }
   .src span { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .actions { margin-top: 16px; text-align: right; }
+  .actions { flex: none; display: flex; justify-content: flex-end; }
   button.cancel {
     background: transparent; border: 1px solid rgba(255,255,255,.14); color: #e9edf6; border-radius: 8px;
     padding: 8px 16px; font: inherit; cursor: pointer;
@@ -36,13 +47,18 @@
 </style>
 </head>
 <body>
-  <h1>Escolha o que compartilhar</h1>
-  <div class="tabs">
-    <button class="tab" id="tab-screen" data-kind="screen">Tela inteira</button>
-    <button class="tab" id="tab-window" data-kind="window">Janela</button>
+  <div class="head">
+    <b>Escolha o que compartilhar</b>
+    <button id="close" title="Fechar">✕</button>
   </div>
-  <div class="grid" id="grid"></div>
-  <div class="actions"><button class="cancel" id="cancel">Cancelar</button></div>
+  <div class="body">
+    <div class="tabs">
+      <button class="tab" id="tab-screen" data-kind="screen">Tela inteira</button>
+      <button class="tab" id="tab-window" data-kind="window">Janela</button>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="actions"><button class="cancel" id="cancel">Cancelar</button></div>
+  </div>
   <script>
     let allSources = [];
     let kind = 'screen'; // 'screen' = telas inteiras, 'window' = janelas de programas
@@ -80,6 +96,7 @@
     document.getElementById('tab-screen').onclick = () => { kind = 'screen'; render(); };
     document.getElementById('tab-window').onclick = () => { kind = 'window'; render(); };
     document.getElementById('cancel').onclick = () => window.pickerAPI.cancel();
+    document.getElementById('close').onclick = () => window.pickerAPI.cancel();
   </script>
 </body>
 </html>
