@@ -11,7 +11,15 @@
     font: 14px/1.4 -apple-system, "Segoe UI", sans-serif; user-select: none;
   }
   h1 { font-size: 15px; margin: 0 0 14px; font-weight: 700; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; max-height: 420px; overflow-y: auto; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tab {
+    background: transparent; border: 1px solid rgba(255,255,255,.14); color: #8892a7; border-radius: 999px;
+    padding: 7px 16px; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .tab:hover { color: #e9edf6; }
+  .tab.on { background: #6f5bff; border-color: #6f5bff; color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; max-height: 390px; overflow-y: auto; }
+  .empty { color: #8892a7; padding: 30px 0; text-align: center; grid-column: 1 / -1; }
   .src {
     border: 2px solid rgba(255,255,255,.08); border-radius: 10px; padding: 8px; cursor: pointer; background: #161c29;
     display: flex; flex-direction: column; gap: 6px; text-align: left;
@@ -29,12 +37,28 @@
 </head>
 <body>
   <h1>Escolha o que compartilhar</h1>
+  <div class="tabs">
+    <button class="tab" id="tab-screen" data-kind="screen">Tela inteira</button>
+    <button class="tab" id="tab-window" data-kind="window">Janela</button>
+  </div>
   <div class="grid" id="grid"></div>
   <div class="actions"><button class="cancel" id="cancel">Cancelar</button></div>
   <script>
-    const grid = document.getElementById('grid');
-    window.pickerAPI.onSources((sources) => {
-      grid.replaceChildren(...sources.map((s) => {
+    let allSources = [];
+    let kind = 'screen'; // 'screen' = telas inteiras, 'window' = janelas de programas
+
+    function render() {
+      document.getElementById('tab-screen').classList.toggle('on', kind === 'screen');
+      document.getElementById('tab-window').classList.toggle('on', kind === 'window');
+      const list = allSources.filter((s) => s.id.startsWith(kind + ':'));
+      const grid = document.getElementById('grid');
+      if (!list.length) {
+        grid.replaceChildren(Object.assign(document.createElement('div'), {
+          className: 'empty', textContent: kind === 'screen' ? 'Nenhuma tela encontrada.' : 'Nenhuma janela aberta.',
+        }));
+        return;
+      }
+      grid.replaceChildren(...list.map((s) => {
         const b = document.createElement('button');
         b.className = 'src';
         const img = document.createElement('img');
@@ -45,7 +69,16 @@
         b.onclick = () => window.pickerAPI.choose(s.id);
         return b;
       }));
+    }
+
+    window.pickerAPI.onSources((sources) => {
+      allSources = sources;
+      // começa na aba que já tem alguma coisa pra mostrar
+      if (!allSources.some((s) => s.id.startsWith('screen:')) && allSources.some((s) => s.id.startsWith('window:'))) kind = 'window';
+      render();
     });
+    document.getElementById('tab-screen').onclick = () => { kind = 'screen'; render(); };
+    document.getElementById('tab-window').onclick = () => { kind = 'window'; render(); };
     document.getElementById('cancel').onclick = () => window.pickerAPI.cancel();
   </script>
 </body>

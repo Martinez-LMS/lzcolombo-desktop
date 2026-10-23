@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, desktopCapturer, screen, shell, ipcMain, dialog, Notification } = require('electron');
+const { app, BrowserWindow, session, desktopCapturer, screen, shell, ipcMain, dialog, Notification, Tray, Menu } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
@@ -30,6 +30,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       preload: path.join(__dirname, 'main-preload.js'),
+      backgroundThrottling: false, // fica rodando em segundo plano (bandeja) sem travar a chamada/transmissão
     },
   });
 
@@ -49,7 +50,7 @@ function askUserToPickSource(sources, parent) {
   return new Promise((resolve) => {
     const picker = new BrowserWindow({
       width: 640,
-      height: 520,
+      height: 560,
       parent,
       modal: true,
       resizable: false,
@@ -162,12 +163,31 @@ function keyToSendKeys(ev) {
   return prefix + token;
 }
 
+// posição do mouse que a GENTE mesma definiu por último via controle remoto — compara com a
+// posição real na hora de cada novo comando: se não bater, é porque o dono do PC pegou o mouse
+// dele por conta própria, então dá uma pausa nos comandos remotos pra não ficar os dois brigando
+// pelo cursor ao mesmo tempo
+let lastAppliedPos = null;
+let remoteSuspendedUntil = 0;
+const LOCAL_TAKEOVER_TOLERANCE = 12; // px — folga pra não disparar à toa por arredondamento
+const LOCAL_TAKEOVER_COOLDOWN = 900; // ms que o controle remoto fica pausado depois que o dono mexeu
+
 function applyRemoteInput(ev, bounds) {
   if (!ev || !bounds || typeof bounds.x !== 'number') return;
+  if (ev.type === 'move' || ev.type === 'down' || ev.type === 'up' || ev.type === 'wheel') {
+    if (lastAppliedPos) {
+      const cur = screen.getCursorScreenPoint();
+      if (Math.abs(cur.x - lastAppliedPos.x) > LOCAL_TAKEOVER_TOLERANCE || Math.abs(cur.y - lastAppliedPos.y) > LOCAL_TAKEOVER_TOLERANCE) {
+        remoteSuspendedUntil = Date.now() + LOCAL_TAKEOVER_COOLDOWN;
+      }
+    }
+    if (Date.now() < remoteSuspendedUntil) return; // dono do PC assumiu o mouse agora — ignora o comando remoto
+  }
   if (ev.type === 'move' || ev.type === 'down' || ev.type === 'up') {
     const x = Math.round(bounds.x + ev.xr * bounds.width);
     const y = Math.round(bounds.y + ev.yr * bounds.height);
     psExec(`[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x},${y})`);
+    lastAppliedPos = { x, y };
   }
   if (ev.type === 'down' || ev.type === 'up') {
     const flag = MOUSE_FLAGS[ev.type][[0, 1, 2].includes(ev.button) ? ev.button : 0];
@@ -199,6 +219,26 @@ function setupRemoteControl() {
   const trusted = (e) => { try { return new URL(e.senderFrame.url).origin === SITE_ORIGIN; } catch { return false; } };
   ipcMain.handle('vleon:get-screen-bounds', (e) => (trusted(e) ? lastScreenBounds : null));
   ipcMain.on('vleon:remote-input', (e, { ev, bounds } = {}) => { if (trusted(e)) applyRemoteInput(ev, bounds); });
+}
+
+// ---------- fica rodando em segundo plano (ícone na bandeja) ----------
+// fechar no X só esconde a janela (continua na sala/compartilhando); só sai de verdade pelo
+// menu da bandeja ou fechando o Windows — assim não derruba quem tá na chamada sem querer
+let tray = null;
+function setupTray(mainWin) {
+  tray = new Tray(path.join(__dirname, 'build', 'icon.ico'));
+  tray.setToolTip('VLeon');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Abrir VLeon', click: () => { mainWin.show(); mainWin.focus(); } },
+    { type: 'separator' },
+    { label: 'Sair', click: () => { app.isQuiting = true; app.quit(); } },
+  ]));
+  tray.on('click', () => { mainWin.isVisible() ? mainWin.focus() : mainWin.show(); });
+  mainWin.on('close', (e) => {
+    if (app.isQuiting) return;
+    e.preventDefault();
+    mainWin.hide();
+  });
 }
 
 // ---------- atualização automática (GitHub Releases) ----------
@@ -237,13 +277,19 @@ app.whenReady().then(() => {
   setupPermissions();
   setupRemoteControl();
   setupThemeSync(mainWin);
+  setupTray(mainWin);
   setupAutoUpdate();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    else mainWin.show();
   });
 });
 
+app.on('before-quit', () => { app.isQuiting = true; });
+
 app.on('window-all-closed', () => {
+  // a janela só é "fechada" de verdade (dispara isso) quando sai pelo menu da bandeja — o X normal
+  // já foi interceptado em setupTray() e só esconde
   if (process.platform !== 'darwin') app.quit();
 });
