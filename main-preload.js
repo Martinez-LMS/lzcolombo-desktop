@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // pessoa aceitar o pedido de controle, mexer o mouse/teclado de verdade no PC dela.
 contextBridge.exposeInMainWorld('desktopAPI', {
   isElectron: true,
+  version: ipcRenderer.sendSync('vleon:version'),
   getScreenBounds: () => ipcRenderer.invoke('vleon:get-screen-bounds'),
   applyRemoteInput: (ev, bounds) => ipcRenderer.send('vleon:remote-input', { ev, bounds }),
   setTitleBarTheme: (light) => ipcRenderer.send('vleon:set-titlebar-theme', { light: !!light }),

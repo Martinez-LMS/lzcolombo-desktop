@@ -1,6 +1,6 @@
 {
   "name": "lzcolombo-desktop",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "VLeon — app de desktop (wrapper Electron do site hospedado)",
   "main": "main.js",
   "author": "VLeon",
@@ -15,6 +15,7 @@
     "productName": "VLeon",
     "icon": "build/icon.ico",
     "artifactName": "${productName}-Setup.exe",
+    "files": ["**/*", "build/icon.*"],
     "directories": {
       "output": "dist"
     },

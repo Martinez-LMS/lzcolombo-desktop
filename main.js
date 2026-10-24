@@ -10,6 +10,7 @@ const SITE_ORIGIN = new URL(SITE_URL).origin;
 // sem isso, as notificações do Windows (ex.: aviso de atualização) aparecem como vindas de
 // "Electron" com um ícone genérico, em vez de "VLeon" com o nosso ícone
 app.setAppUserModelId('com.vleon.desktop');
+ipcMain.on('vleon:version', (e) => { e.returnValue = app.getVersion(); });
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -269,7 +270,9 @@ function setupAutoUpdate() {
     });
     if (response === 0) autoUpdater.quitAndInstall();
   });
-  autoUpdater.checkForUpdates().catch((err) => console.error('[atualização] falha ao checar:', err));
+  const check = () => autoUpdater.checkForUpdates().catch((err) => console.error('[atualização] falha ao checar:', err));
+  check();
+  setInterval(check, 60 * 60 * 1000);
 }
 
 app.whenReady().then(() => {
@@ -278,8 +281,8 @@ app.whenReady().then(() => {
   setupPermissions();
   setupRemoteControl();
   setupThemeSync(mainWin);
-  setupTray(mainWin);
   setupAutoUpdate();
+  setupTray(mainWin);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
