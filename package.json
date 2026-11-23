@@ -1,6 +1,6 @@
 {
   "name": "lzcolombo-desktop",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "VLeon — app de desktop (wrapper Electron do site hospedado)",
   "main": "main.js",
   "author": "VLeon",
@@ -16,6 +16,7 @@
     "icon": "build/icon.ico",
     "artifactName": "${productName}-Setup.exe",
     "files": ["**/*", "build/icon.*"],
+    "asarUnpack": ["node_modules/loopback-capture/**/*"],
     "directories": {
       "output": "dist"
     },
@@ -43,6 +44,7 @@
     "png-to-ico": "^2.1.8"
   },
   "dependencies": {
-    "electron-updater": "^6.8.9"
+    "electron-updater": "^6.8.9",
+    "loopback-capture": "4.0.0"
   }
 }

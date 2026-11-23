@@ -1,6 +1,6 @@
 const { app, BrowserWindow, session, desktopCapturer, screen, shell, ipcMain, dialog, Notification, Tray, Menu } = require('electron');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, execFile } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 
 // Troque aqui se um dia mudar de domínio/hospedagem.
@@ -86,20 +86,107 @@ function askUserToPickSource(sources, parent) {
 // os cliques normalizados (0..1) de quem está controlando a gente em coordenadas reais da tela.
 let lastScreenBounds = null;
 
+// ---------- áudio só da janela compartilhada ----------
+// O 'loopback' do Electron pega a mixagem INTEIRA do Windows (inclusive a voz de quem fala no
+// Discord, o que vira eco pra quem tá na reunião). Pra janela, capturamos só o áudio do processo
+// dono dela (e filhos) via WASAPI process loopback (módulo loopback-capture, Windows 10 build
+// 20348+/Windows 11) e mandamos o PCM pro site, que monta a faixa de áudio (veja main-preload.js).
+let loopbackLib; // undefined = ainda não tentou carregar; null = falhou
+function getLoopbackLib() {
+  if (loopbackLib === undefined) {
+    try { loopbackLib = require('loopback-capture'); } catch (err) { console.error('[áudio da janela] módulo indisponível:', err); loopbackLib = null; }
+  }
+  return loopbackLib;
+}
+
+// id da fonte do desktopCapturer pra janela é "window:<HWND decimal>:<n>"
+function hwndFromSourceId(id) {
+  const m = /^window:(\d+):/.exec(id || '');
+  return m ? m[1] : null;
+}
+
+// HWND -> PID (processo dono da janela). Um PowerShell só pra isso, já que o do controle remoto é só de escrita.
+function pidFromHwnd(hwnd) {
+  return new Promise((resolve) => {
+    const script = [
+      "Add-Type -MemberDefinition '[DllImport(\"user32.dll\")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);' -Name WinPid -Namespace VLeonAudio",
+      '$p = [uint32]0',
+      `[VLeonAudio.WinPid]::GetWindowThreadProcessId([IntPtr]::new([long]${Number(hwnd)}), [ref]$p) | Out-Null`,
+      'Write-Output $p',
+    ].join('; ');
+    execFile('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 8000 }, (err, stdout) => {
+      const pid = parseInt(String(stdout || '').trim(), 10);
+      resolve(!err && pid > 0 ? pid : null);
+    });
+  });
+}
+
+let windowAudio = null; // { capture, timer }
+function stopWindowAudio() {
+  if (!windowAudio) return;
+  const { capture, timer } = windowAudio;
+  windowAudio = null;
+  clearInterval(timer);
+  try { capture.stop(); } catch (err) { console.error('[áudio da janela] erro ao parar:', err); }
+}
+
+function startWindowAudio(pid, mainWin) {
+  const lib = getLoopbackLib();
+  if (!lib) return false;
+  stopWindowAudio();
+  try {
+    const capture = new lib.LoopbackCapture();
+    let pending = [];
+    // junta os pedaços (podem ser bem pequenos) e manda a cada ~20ms pra não encher o IPC
+    const timer = setInterval(() => {
+      if (!pending.length || mainWin.isDestroyed()) return;
+      const chunk = Buffer.concat(pending);
+      pending = [];
+      mainWin.webContents.send('vleon:window-audio-chunk', chunk);
+    }, 20);
+    capture.start(pid, (buf) => { pending.push(Buffer.from(buf)); });
+    windowAudio = { capture, timer };
+    return true;
+  } catch (err) {
+    console.error('[áudio da janela] falha ao iniciar a captura do processo', pid, err);
+    return false;
+  }
+}
+
 // O Chrome tem getDisplayMedia nativo; o Electron precisa que a gente
 // escolha a tela/janela manualmente via desktopCapturer. Sem isso o
 // botão "Compartilhar tela" do site não funciona dentro do app.
 function setupScreenShare(mainWin) {
+  const trusted = (e) => { try { return new URL(e.senderFrame.url).origin === SITE_ORIGIN; } catch { return false; } };
+  ipcMain.on('vleon:window-audio-stop', (e) => { if (trusted(e)) stopWindowAudio(); });
+
   session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
     try {
+      stopWindowAudio(); // começou um compartilhamento novo: o áudio de janela do anterior não vale mais
       const sources = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 300, height: 200 } });
       const pickedId = await askUserToPickSource(sources, mainWin);
       const pick = sources.find((s) => s.id === pickedId);
-      if (pick && pick.id.startsWith('screen:')) {
+      if (!pick) { callback({}); return; }
+
+      if (pick.id.startsWith('screen:')) {
         const d = screen.getAllDisplays().find((x) => String(x.id) === String(pick.display_id));
         lastScreenBounds = d ? d.bounds : null;
+        // tela inteira: o áudio do sistema todo é o esperado
+        callback({ video: pick, audio: 'loopback' });
+        return;
       }
-      callback(pick ? { video: pick, audio: 'loopback' } : {});
+
+      // janela: NUNCA usa 'loopback' (vazaria o Discord e o resto do sistema). Se não der pra isolar
+      // o áudio da janela, segue sem áudio.
+      let audioMode = 'none';
+      if (request.audioRequested) {
+        const hwnd = hwndFromSourceId(pick.id);
+        const pid = hwnd ? await pidFromHwnd(hwnd) : null;
+        if (pid && pid !== process.pid && startWindowAudio(pid, mainWin)) audioMode = 'window';
+      }
+      // avisa o site ANTES de liberar o vídeo, pra ele já saber se vai receber áudio da janela
+      if (!mainWin.isDestroyed()) mainWin.webContents.send('vleon:window-audio-mode', audioMode);
+      callback({ video: pick });
     } catch (err) {
       console.error('Falha ao listar telas pra compartilhar:', err);
       callback({});
@@ -290,7 +377,7 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('before-quit', () => { app.isQuiting = true; });
+app.on('before-quit', () => { app.isQuiting = true; stopWindowAudio(); });
 
 app.on('window-all-closed', () => {
   // a janela só é "fechada" de verdade (dispara isso) quando sai pelo menu da bandeja — o X normal
